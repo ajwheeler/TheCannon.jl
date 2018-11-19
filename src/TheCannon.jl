@@ -1,5 +1,5 @@
 module TheCannon
-using Optim, Statistics
+using Optim, Statistics, LinearAlgebra
 export projected_size,
        deprojected_size,
        project_labels,
