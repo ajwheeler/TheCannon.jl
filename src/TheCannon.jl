@@ -8,41 +8,53 @@ export projected_size,
        train,
        infer
 
-function projected_size(nlabels)
-    Int(1 + 2nlabels + nlabels*(nlabels-1)/2)
+function projected_size(nlabels; quadratic=true)
+    if quadratic
+        Int(1 + 2nlabels + nlabels*(nlabels-1)/2)
+    else
+        nlabels + 1
+    end
 end
 
-function deprojected_size(nplabels)
-    Int((-3 + sqrt(1 + 8nplabels))/2)
+function deprojected_size(nplabels; quadratic=true)
+    if quadratic
+        Int((-3 + sqrt(1 + 8nplabels))/2)
+    else
+        nplabels - 1
+    end
 end
 
-function project_labels(labels::Vector{Float64})
+function project_labels(labels::Vector{Float64}; quadratic=true)
     n = length(labels)
-    np = projected_size(n)
+    np = projected_size(n; quadratic=quadratic)
     plabels = Vector{Float64}(undef, np)
     plabels[1] = 1
     plabels[2:n+1] .= labels
-    k = 1
-    for i in 1:n
-        for j in i:n
-            plabels[n + 1 + k] = labels[i] * labels[j]
-            k += 1
+    if quadratic
+        k = 1
+        for i in 1:n
+            for j in i:n
+                plabels[n + 1 + k] = labels[i] * labels[j]
+                k += 1
+            end
         end
     end
     plabels
 end
 
 #kinda redundant, but I wrote this first and it's faster this way.
-function project_labels(labels::Matrix)
+function project_labels(labels::Matrix; quadratic=true)
     nstars, nlabels = size(labels)
-    plabels = Matrix{Float64}(undef, nstars, projected_size(nlabels))
+    plabels = Matrix{Float64}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
     plabels[:, 1] .= 1
     plabels[:, 2:nlabels+1] .= labels
-    k = 1
-    for i in 1:nlabels
-        for j in i:nlabels
-            plabels[:, nlabels + 1 + k] .= labels[:, i] .* labels[:, j]
-            k += 1
+    if quadratic
+        k = 1
+        for i in 1:nlabels
+            for j in i:nlabels
+                plabels[:, nlabels + 1 + k] .= labels[:, i] .* labels[:, j]
+                k += 1
+            end
         end
     end
     plabels
@@ -70,12 +82,10 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
     It will be projected into the quadratic label space before training.
 """
 function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64}; 
-               project=true)
+               quadratic=true)
     nstars = size(flux,1)
     npix = size(flux, 2)
-    if project
-        labels = project_labels(labels)
-    end
+    labels = project_labels(labels; quadratic=quadratic)
     nplabels = size(labels, 2)
     println("$nstars stars, $npix pixels, $nplabels (projected) labels")
 
@@ -153,10 +163,10 @@ Run the test step of the cannon.
 function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
               theta::Matrix{Float64}, scatters::Vector{Float64}, 
               prior::Matrix{Union{Tuple{Float64, Float64, Float64}, Missing}};
-              project=false)
+              quadratic=true)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
-    nlabels = project ? deprojected_size(nplabels) : nplabels
+    nlabels = deprojected_size(nplabels; quadratic=quadratic)
     inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
     chi_squared = Vector{Float64}(undef, nstars)
     thetaT = (transpose(theta))
@@ -166,7 +176,7 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
         F = flux[i, :]
         invσ = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
         function negative_log_post(labels::Vector{Float64})
-            A2 = (thetaT * (project ? project_labels(labels) : labels) .- F).^2
+            A2 = (thetaT * project_labels(labels; quadratic=quadratic) .- F).^2
             0.5 * sum(A2 .* invσ) - sum(logπ.(labels, prior[:, i]))
         end
         #fit = pyoptimize[:minimize](negative_log_likelihood, zeros(nlabels))

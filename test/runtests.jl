@@ -7,18 +7,22 @@ using Test, Statistics, TheCannon
         plabels = Float64.([[1  1  2  3  1  2  3  4  6  9];
                             [1  2  3  4  4  6  8  9  12  16]])
         @test project_labels(labels) ≈ plabels
+        @test project_labels(labels;quadratic=false) ≈ Float64.([[1 1 2 3];[1 2 3 4]])
     end
 
     @testset "single label projection" begin
         @test project_labels([1., 2., 3.]) == Float64.([1, 1, 2, 3, 1, 2, 3, 4, 6, 9])
+        @test project_labels([1., 2., 3.]; quadratic=false) == Float64.([1,1,2,3])
     end
 
     @testset "projected size" begin
         @test projected_size(10) == 66
+        @test projected_size(10;quadratic=false) == 11
     end
 
     @testset "deprojected size" begin
         @test deprojected_size(66) == 10
+        @test deprojected_size(11;quadratic=false) == 10
     end
 
     @testset "label standardization" begin
