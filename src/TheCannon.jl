@@ -8,7 +8,6 @@ export projected_size,
        train,
        infer
 
-
 function projected_size(nlabels)
     Int(1 + 2nlabels + nlabels*(nlabels-1)/2)
 end
@@ -70,10 +69,13 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
     It will be projected into the quadratic label space before training.
 """
-function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64})
+function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64}; 
+               project=true)
     nstars = size(flux,1)
     npix = size(flux, 2)
-    labels = project_labels(labels)
+    if project
+        labels = project_labels(labels)
+    end
     nplabels = size(labels, 2)
     println("$nstars stars, $npix pixels, $nplabels (projected) labels")
 
@@ -150,10 +152,11 @@ Run the test step of the cannon.
 """
 function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
               theta::Matrix{Float64}, scatters::Vector{Float64}, 
-              prior::Matrix{Union{Tuple{Float64, Float64, Float64}, Missing}})
+              prior::Matrix{Union{Tuple{Float64, Float64, Float64}, Missing}};
+              project=false)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
-    nlabels = deprojected_size(nplabels)
+    nlabels = project ? deprojected_size(nplabels) : nplabels
     inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
     chi_squared = Vector{Float64}(undef, nstars)
     thetaT = (transpose(theta))
@@ -163,7 +166,7 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
         F = flux[i, :]
         invσ = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
         function negative_log_post(labels::Vector{Float64})
-            A2 = (thetaT * project_labels(labels) .- F).^2
+            A2 = (thetaT * (project ? project_labels(labels) : labels) .- F).^2
             0.5 * sum(A2 .* invσ) - sum(logπ.(labels, prior[:, i]))
         end
         #fit = pyoptimize[:minimize](negative_log_likelihood, zeros(nlabels))
