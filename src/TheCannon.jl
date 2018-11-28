@@ -177,9 +177,6 @@ function logπ(label::Float64, p::Union{Tuple{Float64, Float64, Float64}, Missin
     end
 end                                        
 
-#using PyCall
-#pyoptimize = pyimport("scipy.optimize")
-#curve_fit = pyoptimize[:curve_fit]
 """
     test(flux, ivar, theta, scatters
 
@@ -204,18 +201,10 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
             A2 = (thetaT * project_labels(labels; quadratic=quadratic) .- F).^2
             0.5 * sum(A2 .* invσ) - sum(logπ.(labels, prior[:, i]))
         end
-        #fit = pyoptimize[:minimize](negative_log_likelihood, zeros(nlabels))
         fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6))
         
-        #σ = ivar[i, :].^(-1) + scatters.^2
-        #function model_flux(theta, labels::Vector{Float64})
-        #    transpose(theta)*project_labels(labels)
-        #end
-        #labels, labelcov = curve_fit(model_flux, theta, flux[i, :], sigma=σ, absolute_sigma=true)
-
         inferred_labels[i, :] = fit.minimizer
         chi_squared[i] = fit.minimum
-        #inferred_labels[i, :] = fit["x"]
     end
     inferred_labels, chi_squared
 end
