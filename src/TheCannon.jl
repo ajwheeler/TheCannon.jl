@@ -60,6 +60,31 @@ function project_labels(labels::Matrix; quadratic=true)
     plabels
 end
 
+"""
+Get the quadratic terms of theta as matrices.
+returns an array of dimensions nlabels x nlabels x npixels
+
+   Q = quad_coeff_matrix(theta)
+   Q[:, :, 1] #quadratic coefficients for first pixel
+
+"""
+function quad_coeff_matrix(theta::Matrix{Float64}) :: Array{Float64, 3}
+    nlabels = deprojected_size(size(theta, 1)) 
+    npix = size(theta, 2)
+    Q = Array{Float64}(undef, nlabels, nlabels, npix)
+    for p in 1:npix
+        k = 1
+        for i in 1:nlabels
+            for j in i:nlabels
+                Q[i, j, p] = theta[nlabels + 1 + k, p]
+                Q[j, i, p] = Q[i, j, p]
+                k += 1
+            end 
+        end 
+    end 
+    Q
+end
+
 function standardize_labels(labels)
     pivot = mean(labels, dims=1)
     scale = std(labels, dims=1)
