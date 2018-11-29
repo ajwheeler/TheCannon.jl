@@ -26,24 +26,8 @@ function deprojected_size(nplabels; quadratic=true)
 end
 
 function project_labels(labels::Vector{Float64}; quadratic=true)
-    n = length(labels)
-    np = projected_size(n; quadratic=quadratic)
-    plabels = Vector{Float64}(undef, np)
-    plabels[1] = 1
-    plabels[2:n+1] .= labels
-    if quadratic
-        k = 1
-        for i in 1:n
-            for j in i:n
-                plabels[n + 1 + k] = labels[i] * labels[j]
-                k += 1
-            end
-        end
-    end
-    plabels
+    vec(project_labels(Matrix(transpose(labels)), quadratic=quadratic))
 end
-
-#kinda redundant, but I wrote this first and it's faster this way.
 function project_labels(labels::Matrix; quadratic=true)
     nstars, nlabels = size(labels)
     plabels = Matrix{Float64}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
