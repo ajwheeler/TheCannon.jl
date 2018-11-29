@@ -6,7 +6,8 @@ export projected_size,
        standardize_labels,
        unstandardize_labels,
        train,
-       infer
+       infer,
+       quad_coeff_matrix
 
 function projected_size(nlabels; quadratic=true)
     if quadratic
@@ -120,8 +121,8 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Floa
     #do linear regression for each pixel
     for i in 1:npix
         #calculate theta
-        lT_invcov_l = transpose(labels) * Diagonal(ivar) * labels #more this out of loop, do cholesky docomp, check condition number?
-        lT_invcov_F = transpose(labels) * Diagonal(ivar) * flux[:,i]
+        lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels #do cholesky docomp, check condition number?
+        lT_invcov_F = transpose(labels) * Diagonal(ivar[:, i]) * flux[:,i]
         theta[:, i] = lT_invcov_l \ lT_invcov_F
 
         #calculate optimal scatter
