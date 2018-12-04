@@ -9,22 +9,15 @@ export projected_size,
        infer,
        quad_coeff_matrix
 
-function projected_size(nlabels; quadratic=true, zeroth=true)
+function projected_size(nlabels; quadratic=true)
     if quadratic
-        n = Int(1 + 2nlabels + nlabels*(nlabels-1)/2)
+        Int(1 + 2nlabels + nlabels*(nlabels-1)/2)
     else
-        n = nlabels + 1
+        nlabels + 1
     end
-    if !zeroth
-        n -= 1
-    end
-    n
 end
 
-function deprojected_size(nplabels; quadratic=true, zeroth=true)
-    if !zeroth
-        nplabels += 1
-    end
+function deprojected_size(nplabels; quadratic=true)
     if quadratic
         Int((-3 + sqrt(1 + 8nplabels))/2)
     else
@@ -32,29 +25,19 @@ function deprojected_size(nplabels; quadratic=true, zeroth=true)
     end
 end
 
-"""
-Apply the projection funtion to the label matrix.  By default,
-this includes a 0th order term (always equal to 1), 
-linear terms (each label itself),
-and quadratic terms (the product of each pair of labels).
-"""
-function project_labels(labels::Vector{Float64}; quadratic=true, zeroth=true)
-    vec(project_labels(Matrix(transpose(labels)), quadratic=quadratic, zeroth=zeroth))
+function project_labels(labels::Vector{Float64}; quadratic=true)
+    vec(project_labels(Matrix(transpose(labels)), quadratic=quadratic))
 end
-function project_labels(labels::Matrix; quadratic=true, zeroth=true)
+function project_labels(labels::Matrix; quadratic=true)
     nstars, nlabels = size(labels)
-    plabels = Matrix{Float64}(undef, nstars, projected_size(nlabels; quadratic=quadratic, zeroth=zeroth))
-    k = 1
-    if zeroth
-        plabels[:, k] .= 1
-        k += 1
-    end
-    plabels[:, k:nlabels+k-1] .= labels
-    k += nlabels
+    plabels = Matrix{Float64}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
+    plabels[:, 1] .= 1
+    plabels[:, 2:nlabels+1] .= labels
     if quadratic
+        k = 1
         for i in 1:nlabels
             for j in i:nlabels
-                plabels[:, k] .= labels[:, i] .* labels[:, j]
+                plabels[:, nlabels + 1 + k] .= labels[:, i] .* labels[:, j]
                 k += 1
             end
         end
@@ -109,10 +92,10 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
     It will be projected into the quadratic label space before training.
 """
 function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64}; 
-               quadratic=true, zeroth=true)
+               quadratic=true)
     nstars = size(flux,1)
     npix = size(flux, 2)
-    labels = project_labels(labels; quadratic=quadratic, zeroth=zeroth)
+    labels = project_labels(labels; quadratic=quadratic)
     nplabels = size(labels, 2)
     println("$nstars stars, $npix pixels, $nplabels (projected) labels")
 
@@ -139,7 +122,6 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Floa
     theta, scatters
 end
 
-#TODO support other projections
 function regularized_train(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
                            labels::Matrix{Float64}, Λ=0.1)
     nstars = size(flux,1)
@@ -171,7 +153,6 @@ function regularized_train(flux::Matrix{Float64}, ivar::Matrix{Float64},
     theta, abs.(scatters)
 end
 
-#called by infer.  TODO move within?
 function logπ(label::Float64, p::Union{Tuple{Float64, Float64, Float64}, Missing})
     if ismissing(p)
         return 0
@@ -189,10 +170,10 @@ Run the test step of the cannon.
 function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
               theta::Matrix{Float64}, scatters::Vector{Float64}, 
               prior::Matrix{Union{Tuple{Float64, Float64, Float64}, Missing}};
-              quadratic=true, zeroth=true)
+              quadratic=true)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
-    nlabels = deprojected_size(nplabels; quadratic=quadratic, zeroth=zeroth)
+    nlabels = deprojected_size(nplabels; quadratic=quadratic)
     inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
     chi_squared = Vector{Float64}(undef, nstars)
     thetaT = (transpose(theta))
@@ -202,7 +183,7 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
         F = flux[i, :]
         invσ = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
         function negative_log_post(labels::Vector{Float64})
-            A2 = (thetaT * project_labels(labels; quadratic=quadratic, zeroth=zeroth) .- F).^2
+            A2 = (thetaT * project_labels(labels; quadratic=quadratic) .- F).^2
             0.5 * sum(A2 .* invσ) - sum(logπ.(labels, prior[:, i]))
         end
         fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6))
