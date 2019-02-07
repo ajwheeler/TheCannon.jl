@@ -174,22 +174,24 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
     nlabels = deprojected_size(nplabels; quadratic=quadratic)
+
     inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
     chi_squared = Vector{Float64}(undef, nstars)
-    thetaT = (transpose(theta))
+
+    thetaT = transpose(theta)
     for i in 1:nstars
         i%100==0 && println("inferring labels for star $i")
 
         F = flux[i, :]
-        invσ = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
+        invσ2 = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
         function negative_log_post(labels::Vector{Float64})
             A2 = (thetaT * project_labels(labels; quadratic=quadratic) .- F).^2
-            0.5 * sum(A2 .* invσ) - sum(logπ.(labels, prior[:, i]))
+            0.5 * sum(A2 .* invσ2) - sum(logπ.(labels, prior[:, i]))
         end
         fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6))
         
         inferred_labels[i, :] = fit.minimizer
-        chi_squared[i] = fit.minimum
+        chi_squared[i] = sum((thetaT * project_labels(fit.minimizer; quadratic=quadratic) .- F).^2 .* invσ2)
     end
     inferred_labels, chi_squared
 end
