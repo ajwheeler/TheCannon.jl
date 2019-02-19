@@ -1,5 +1,5 @@
 module TheCannon
-using Optim, Statistics, LinearAlgebra
+using Optim, Statistics, LinearAlgebra, ForwardDiff
 export projected_size,
        deprojected_size,
        project_labels,
@@ -25,12 +25,12 @@ function deprojected_size(nplabels; quadratic=true)
     end
 end
 
-function project_labels(labels::Vector{Float64}; quadratic=true)
+function project_labels(labels::Vector{R}; quadratic=true) where R <: Real
     vec(project_labels(Matrix(transpose(labels)), quadratic=quadratic))
 end
-function project_labels(labels::Matrix; quadratic=true)
+function project_labels(labels::Matrix{R}; quadratic=true) where R <: Real
     nstars, nlabels = size(labels)
-    plabels = Matrix{Float64}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
+    plabels = Matrix{R}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
     plabels[:, 1] .= 1
     plabels[:, 2:nlabels+1] .= labels
     if quadratic
@@ -153,7 +153,7 @@ function regularized_train(flux::Matrix{Float64}, ivar::Matrix{Float64},
     theta, abs.(scatters)
 end
 
-function logπ(label::Float64, p::Union{Tuple{Float64, Float64, Float64}, Missing})
+function logπ(label::R, p) where R <: Real
     if ismissing(p)
         return 0
     else
@@ -177,6 +177,7 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
 
     inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
     chi_squared = Vector{Float64}(undef, nstars)
+    information = Array{Float64, 3}(undef, nstars, nlabels, nlabels)
 
     thetaT = transpose(theta)
     for i in 1:nstars
@@ -184,16 +185,18 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
 
         F = flux[i, :]
         invσ2 = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
-        function negative_log_post(labels::Vector{Float64})
+        function negative_log_post(labels)
             A2 = (thetaT * project_labels(labels; quadratic=quadratic) .- F).^2
             0.5 * sum(A2 .* invσ2) - sum(logπ.(labels, prior[:, i]))
         end
-        fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6))
+        fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6),
+                      autodiff=:forward)
         
         inferred_labels[i, :] = fit.minimizer
         chi_squared[i] = sum((thetaT * project_labels(fit.minimizer; quadratic=quadratic) .- F).^2 .* invσ2)
+        information[i, :, :] = ForwardDiff.hessian(negative_log_post, fit.minimizer)
     end
-    inferred_labels, chi_squared
+    inferred_labels, chi_squared, information
 end
 
 end
