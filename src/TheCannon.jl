@@ -106,8 +106,11 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Floa
     #do linear regression for each pixel
     for i in 1:npix
         #calculate theta
-        #do cholesky docomp, check condition number?
         lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels 
+        c = cond(lT_invcov_l)
+        if c > 10^8
+            @warn "condition number is very large ($c)"
+        end
         lT_invcov_F = transpose(labels) * Diagonal(ivar[:, i]) * flux[:,i]
         theta[:, i] = lT_invcov_l \ lT_invcov_F
 
