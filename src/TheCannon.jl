@@ -6,6 +6,7 @@ export projected_size,
        standardize_labels,
        unstandardize_labels,
        train,
+       regularized_train,
        infer,
        quad_coeff_matrix
 
@@ -99,13 +100,14 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Floa
     nplabels = size(labels, 2)
     println("$nstars stars, $npix pixels, $nplabels (projected) labels")
 
-    theta = Matrix{Float64}(undef, nplabels, npix) #insert undef as first arg for Julia 1.0
+    theta = Matrix{Float64}(undef, nplabels, npix)
     scatters = Vector{Float64}(undef, npix)
 
     #do linear regression for each pixel
     for i in 1:npix
         #calculate theta
-        lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels #do cholesky docomp, check condition number?
+        #do cholesky docomp, check condition number?
+        lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels 
         lT_invcov_F = transpose(labels) * Diagonal(ivar[:, i]) * flux[:,i]
         theta[:, i] = lT_invcov_l \ lT_invcov_F
 
@@ -126,11 +128,12 @@ function regularized_train(flux::Matrix{Float64}, ivar::Matrix{Float64},
                            labels::Matrix{Float64}, Λ=0.1)
     nstars = size(flux,1)
     npix = size(flux, 2)
+    nlabels = size(labels, 2)
     labels = project_labels(labels)
     nplabels = size(labels, 2)
     println("$nstars stars, $npix pixels, $nplabels labels")
 
-    theta = Matrix{Float64}(undef, nplabels, npix) #insert undef as first arg for Julia 1.0
+    theta = Matrix{Float64}(undef, nplabels, npix)
     scatters = Vector{Float64}(undef, npix)
 
     #do linear regression for each pixel
@@ -139,14 +142,27 @@ function regularized_train(flux::Matrix{Float64}, ivar::Matrix{Float64},
         function negative_log_likelihood(coeffscatter::Vector{Float64}) #up to constant
             scatter = coeffscatter[end]
             coeffs = coeffscatter[1:end-1]
-            invσ = (ivar[:, i].^(-1) .+ scatter^2).^(-1)
-            A2 = (labels*coeffs - flux[:, i]).^2
-            (0.5*sum(A2.*invσ) - 0.5*sum(log.(invσ)) +  
-             Λ * sum(abs.(coeffs[6:end])) #regularization term
-             )
+
+            χ = labels*theta[:, i] - flux[:, i]
+            Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
+            (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
+             0.5*sum(log.(diag(Σ))))# + #log(det(Σ))
+            #Λ*sum(abs.(coeffs[6:end]))) #L1 penalty
+            #invσ = (ivar[:, i].^(-1) .+ scatter^2).^(-1)
+            #A2 = (labels*coeffs - flux[:, i]).^2
+            #(0.5*sum(A2.*invσ) - 0.5*sum(log.(invσ)) +  
+            # Λ * sum(abs.(coeffs[6:end] .^ 2)) #regularization term
+            # )
         end
-        fit = optimize(negative_log_likelihood, zeros(nplabels+1), 
-                       Optim.Options(g_tol=1e-2, iterations=1000))
+
+        thetascatter0 = zeros(nplabels+1)
+        lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels 
+        lT_invcov_F = transpose(labels) * Diagonal(ivar[:, i]) * flux[:,i]
+        thetascatter0[1:end-1] = lT_invcov_l \ lT_invcov_F
+        thetascatter0[end] = 0.01
+
+        fit = optimize(negative_log_likelihood, thetascatter0, iterations=1000)
+        #print(fit)
         scatters[i] = fit.minimizer[end]
         theta[:, i] = fit.minimizer[1:end-1]
     end
