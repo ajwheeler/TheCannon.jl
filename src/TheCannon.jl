@@ -227,5 +227,11 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
     end
     inferred_labels, chi_squared, information
 end
+function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
+              theta::Matrix{Float64}, scatters::Vector{Float64};
+              kwargs...)
+    prior = Matrix{Missing}(missing, nlabels, nstars)
+    infer(flux, ivar, theta, scatters, prior; kwargs...)
+end
 
 end
