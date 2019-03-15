@@ -195,7 +195,7 @@ Run the test step of the cannon.
 Given a Cannon model (from training), infer stellar parameters
 """
 function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
-              theta::AbstractMatrix{Float64}, scatters::Vector{Float64}, 
+              theta::AbstractMatrix{Float64}, scatters::AbstractVector{Float64}, 
               prior::AbstractMatrix{Union{Tuple{Float64, Float64, Float64}, Missing}};
               quadratic=true, verbose=true)
     nstars = size(flux, 1)
@@ -228,7 +228,7 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
     inferred_labels, chi_squared, information
 end
 function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
-              theta::AbstractMatrix{Float64}, scatters::Vector{Float64};
+              theta::AbstractMatrix{Float64}, scatters::AbstractVector{Float64};
               kwargs...)
     prior = Matrix{Missing}(missing, nlabels, nstars)
     infer(flux, ivar, theta, scatters, prior; kwargs...)
