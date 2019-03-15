@@ -81,6 +81,45 @@ function unstandardize_labels(labels, pivot, scale)
     labels.*transpose(hcat(scale)) .+ transpose(hcat(pivot))
 end
 
+function train1d(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
+                             labels::Matrix{Float64}; Λ=10, fastmode=false)
+    nstars = size(flux,1)
+    npix = size(flux, 2)
+    nlabels = size(labels, 2)
+    labels = project_labels(labels)
+    nplabels = size(labels, 2)
+    println("$nstars stars, $npix pixels, $nplabels labels")
+
+    theta = Matrix{Float64}(undef, nplabels, npix)
+    scatters = Vector{Float64}(undef, npix)
+
+    #do linear regression for each pixel
+    for i in 1:npix
+        println("pixel $i")
+        function negative_log_likelihood(scatter) #up to constant
+            Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
+            lT_invcov_l = transpose(labels) * Σ * labels
+            lT_invcov_F = transpose(labels) * Σ * flux[:,i]
+            coeffs = lT_invcov_l \ lT_invcov_F
+            χ = labels*coeffs - flux[:, i]
+            (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
+             0.5*sum(log.(diag(Σ))) + #normalizaion term
+             Λ*sum(abs.(coeffs[4:end]))) #L1 penalty
+        end
+        fit = optimize(negative_log_likelihood, 0, 2)
+        #println(fit)
+        if ! fit.converged
+            @warn "pixel $i not converged"
+        end
+        scatters[i] = fit.minimizer[end]
+        Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
+        lT_invcov_l = transpose(labels) * Σ * labels
+        lT_invcov_F = transpose(labels) * Σ * flux[:,i]
+        theta[:, i] = lT_invcov_l \ lT_invcov_F
+    end
+    theta, scatters
+end
+
 """
     train(flux, ivar, labels)
 
@@ -153,11 +192,12 @@ end
     test(flux, ivar, theta, scatters
 
 Run the test step of the cannon.
+Given a Cannon model (from training), infer stellar parameters
 """
 function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
               theta::Matrix{Float64}, scatters::Vector{Float64}, 
               prior::Matrix{Union{Tuple{Float64, Float64, Float64}, Missing}};
-              quadratic=true)
+              quadratic=true, verbose=true)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
     nlabels = deprojected_size(nplabels; quadratic=quadratic)
@@ -168,7 +208,9 @@ function infer(flux::Matrix{Float64}, ivar::Matrix{Float64},
 
     thetaT = transpose(theta)
     for i in 1:nstars
-        i%100==0 && println("inferring labels for star $i")
+        if verbose && i%100==0
+            println("inferring labels for star $i")
+        end
 
         F = flux[i, :]
         invσ2 = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
