@@ -229,7 +229,10 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
 end
 function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
               theta::AbstractMatrix{Float64}, scatters::AbstractVector{Float64};
-              kwargs...)
+              quadratic=true, kwargs...)
+    nstars = size(flux, 1)
+    nplabels = size(theta, 1)
+    nlabels = deprojected_size(nplabels; quadratic=quadratic)
     prior = Matrix{Missing}(missing, nlabels, nstars)
     infer(flux, ivar, theta, scatters, prior; kwargs...)
 end
