@@ -103,15 +103,13 @@ function train1d(flux::Matrix{Float64}, ivar::Matrix{Float64},
             coeffs = lT_invcov_l \ lT_invcov_F
             χ = labels*coeffs - flux[:, i]
             (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
-             0.5*sum(log.(diag(Σ))) + #normalizaion term
-             Λ*sum(abs.(coeffs[4:end]))) #L1 penalty
+             0.5*sum(log.(diag(Σ)))) #normalizaion term
         end
-        fit = optimize(negative_log_likelihood, 0, 2)
-        #println(fit)
+        fit = optimize(negative_log_likelihood, 0, 2, rel_tol=0.01)
         if ! fit.converged
-            @warn "pixel $i not converged"
+            @warn "pixel $i not converged for phase 1"
         end
-        scatters[i] = fit.minimizer[end]
+        scatters[i] = fit.minimizer
         Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
         lT_invcov_l = transpose(labels) * Σ * labels
         lT_invcov_F = transpose(labels) * Σ * flux[:,i]
@@ -160,13 +158,9 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64},
         thetascatter0 = zeros(nplabels+1)
         lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels 
         lT_invcov_F = transpose(labels) * Diagonal(ivar[:, i]) * flux[:,i]
-        #lT_invcov_l = transpose(labels) * labels 
-        #lT_invcov_F = transpose(labels) * flux[:,i]
         thetascatter0[1:end-1] = lT_invcov_l \ lT_invcov_F
         thetascatter0[end] = 0.01
 
-        #lower = vcat(fill(-1., nplabels), [0.])
-        #upper = vcat(fill(2., nplabels), [1.])
         fit = optimize(negative_log_likelihood, thetascatter0,
                        iterations=fastmode ? 1000 : 100000)
         #println(fit)
