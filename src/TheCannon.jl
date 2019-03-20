@@ -81,6 +81,13 @@ function unstandardize_labels(labels, pivot, scale)
     labels.*transpose(hcat(scale)) .+ transpose(hcat(pivot))
 end
 
+function linear_soln(labels, Σ, flux)
+    lT_invcov_l = transpose(labels) * inv(Σ) * labels 
+    lT_invcov_F = transpose(labels) * inv(Σ) * flux
+    lT_invcov_l \ lT_invcov_F
+end
+
+
 function train1d(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
                              labels::Matrix{Float64}; Λ=10, fastmode=false)
     nstars = size(flux,1)
@@ -92,30 +99,28 @@ function train1d(flux::Matrix{Float64}, ivar::Matrix{Float64},
 
     theta = Matrix{Float64}(undef, nplabels, npix)
     scatters = Vector{Float64}(undef, npix)
+    objective = Vector{Float64}(undef, npix)
 
     #do linear regression for each pixel
     for i in 1:npix
         println("pixel $i")
         function negative_log_likelihood(scatter) #up to constant
             Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
-            lT_invcov_l = transpose(labels) * Σ * labels
-            lT_invcov_F = transpose(labels) * Σ * flux[:,i]
-            coeffs = lT_invcov_l \ lT_invcov_F
+            coeffs = linear_soln(labels, Σ, flux[:, i])
             χ = labels*coeffs - flux[:, i]
             (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
              0.5*sum(log.(diag(Σ)))) #normalizaion term
         end
-        fit = optimize(negative_log_likelihood, 0, 2, rel_tol=0.01)
+        fit = optimize(negative_log_likelihood, 0, 1, rel_tol=0.0001, abs_tol=0.001)
         if ! fit.converged
-            @warn "pixel $i not converged for phase 1"
+            @warn "pixel $i not converged"
         end
         scatters[i] = fit.minimizer
         Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
-        lT_invcov_l = transpose(labels) * Σ * labels
-        lT_invcov_F = transpose(labels) * Σ * flux[:,i]
-        theta[:, i] = lT_invcov_l \ lT_invcov_F
+        theta[:, i] = linear_soln(labels, Σ, flux[:, i])
+        objective[i] = fit.minimum
     end
-    theta, scatters
+    theta, scatters, objective
 end
 
 """
@@ -140,6 +145,7 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64},
 
     theta = Matrix{Float64}(undef, nplabels, npix)
     scatters = Vector{Float64}(undef, npix)
+    objective = Vector{Float64}(undef, npix)
 
     #do linear regression for each pixel
     for i in 1:npix
@@ -163,14 +169,14 @@ function train(flux::Matrix{Float64}, ivar::Matrix{Float64},
 
         fit = optimize(negative_log_likelihood, thetascatter0,
                        iterations=fastmode ? 1000 : 100000)
-        #println(fit)
         if ! fit.g_converged
             @warn "pixel $i not converged"
         end
         scatters[i] = fit.minimizer[end]
         theta[:, i] = fit.minimizer[1:end-1]
+        objective[i] = fit.minimum
     end
-    theta, scatters
+    theta, scatters, objective
 end
 
 function logπ(label::R, p) where R <: Real
