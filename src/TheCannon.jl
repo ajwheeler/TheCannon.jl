@@ -83,45 +83,13 @@ end
 
 function linear_soln(labels, Σ, flux)
     lT_invcov_l = transpose(labels) * inv(Σ) * labels 
+    #if cond(lT_invcov_l) > 1e8
+    #    @warn "dangerous condition number in normal equation"
+    #end
     lT_invcov_F = transpose(labels) * inv(Σ) * flux
     lT_invcov_l \ lT_invcov_F
 end
 
-
-function train1d(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
-                             labels::Matrix{Float64}; Λ=10, fastmode=false)
-    nstars = size(flux,1)
-    npix = size(flux, 2)
-    nlabels = size(labels, 2)
-    labels = project_labels(labels)
-    nplabels = size(labels, 2)
-    println("$nstars stars, $npix pixels, $nplabels labels")
-
-    theta = Matrix{Float64}(undef, nplabels, npix)
-    scatters = Vector{Float64}(undef, npix)
-    objective = Vector{Float64}(undef, npix)
-
-    #do linear regression for each pixel
-    for i in 1:npix
-        println("pixel $i")
-        function negative_log_likelihood(scatter) #up to constant
-            Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
-            coeffs = linear_soln(labels, Σ, flux[:, i])
-            χ = labels*coeffs - flux[:, i]
-            (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
-             0.5*sum(log.(diag(Σ)))) #normalizaion term
-        end
-        fit = optimize(negative_log_likelihood, 0, 1, rel_tol=0.0001, abs_tol=0.001)
-        if ! fit.converged
-            @warn "pixel $i not converged"
-        end
-        scatters[i] = fit.minimizer
-        Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
-        theta[:, i] = linear_soln(labels, Σ, flux[:, i])
-        objective[i] = fit.minimum
-    end
-    theta, scatters, objective
-end
 
 """
     train(flux, ivar, labels)
@@ -134,7 +102,47 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
     It will be projected into the quadratic label space before training.
 """
-function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
+function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64}; 
+               verbose=true)
+    #count everything
+    nstars = size(flux,1)
+    npix = size(flux, 2)
+    nlabels = size(labels, 2)
+    labels = project_labels(labels)
+    nplabels = size(labels, 2)
+    if verbose 
+        println("$nstars stars, $npix pixels, $nplabels labels")
+    end
+    #initialize output variables
+    theta = Matrix{Float64}(undef, nplabels, npix)
+    scatters = Vector{Float64}(undef, npix)
+    #train on each pixel independently
+    for i in 1:npix
+        if verbose && i % 500 == 0
+            println("training on pixel $i")
+        end
+        function negative_log_likelihood(scatter) #up to constant
+            scatter = scatter[1]
+            Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
+            coeffs = linear_soln(labels, Σ, flux[:, i])
+            χ = labels*coeffs - flux[:, i]
+            (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
+             0.5*sum(log.(diag(Σ)))) #normalizaion term
+        end
+        fit = optimize(negative_log_likelihood, 1e-16, 1, rel_tol=0.01)
+        #fit = optimize(negative_log_likelihood, [0.01], LBFGS(); autodiff=:forward)
+        if ! fit.converged
+            @warn "pixel $i not converged"
+        end
+
+        scatters[i] = fit.minimizer[1]
+        Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
+        theta[:, i] = linear_soln(labels, Σ, flux[:, i])
+    end
+    theta, scatters
+end
+
+function train_mv(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
                            labels::Matrix{Float64}; Λ=10, fastmode=false)
     nstars = size(flux,1)
     npix = size(flux, 2)
