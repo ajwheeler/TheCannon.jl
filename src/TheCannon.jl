@@ -103,12 +103,12 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
     It will be projected into the quadratic label space before training.
 """
 function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64}; 
-               verbose=true)
+               verbose=true, quadratic=true)
     #count everything
     nstars = size(flux,1)
     npix = size(flux, 2)
     nlabels = size(labels, 2)
-    labels = project_labels(labels)
+    labels = project_labels(labels, quadratic=quadratic)
     nplabels = size(labels, 2)
     if verbose 
         println("$nstars stars, $npix pixels, $nplabels labels")
