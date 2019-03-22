@@ -102,8 +102,8 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
     It will be projected into the quadratic label space before training.
 """
-function train(flux::Matrix{Float64}, ivar::Matrix{Float64}, labels::Matrix{Float64}; 
-               verbose=true, quadratic=true)
+function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64}, 
+               labels::AbstractMatrix{Float64}; verbose=true, quadratic=true)
     #count everything
     nstars = size(flux,1)
     npix = size(flux, 2)
@@ -237,10 +237,10 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
 end
 function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
               theta::AbstractMatrix{Float64}, scatters::AbstractVector{Float64};
-              quadratic=true, kwargs...)
+              kwargs...)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
-    nlabels = deprojected_size(nplabels; quadratic=quadratic)
+    nlabels = deprojected_size(nplabels; quadratic=kwargs[:quadratic])
     prior = Matrix{Union{Missing, Tuple{Float64, Float64, Float64}}}(missing, nlabels, nstars)
     infer(flux, ivar, theta, scatters, prior; kwargs...)
 end
