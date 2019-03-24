@@ -6,7 +6,6 @@ export projected_size,
        standardize_labels,
        unstandardize_labels,
        train,
-       regularized_train,
        infer,
        quad_coeff_matrix
 
