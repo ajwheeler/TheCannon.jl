@@ -1,6 +1,6 @@
 module TheCannon
 using Optim, Statistics, LinearAlgebra, ForwardDiff
-export projected_size,
+export expanded_size,
        deprojected_size,
        project_labels,
        standardize_labels,
@@ -9,7 +9,20 @@ export projected_size,
        infer,
        quad_coeff_matrix
 
-function projected_size(nlabels; quadratic=true)
+@deprecate projected_size expanded_size
+@deprecate deprojected_size collapsed_size
+@deprecate project_labels expand_labels
+
+"""
+
+    expandeded_size(nlabels; quadratic=true)
+
+The length of a label vector of length `nlabels` after it has been 
+quadratically expanded.
+
+See also: [`collapsed_size`](@ref)
+"""
+function expanded_size(nlabels; quadratic=true)
     if quadratic
         Int(1 + 2nlabels + nlabels*(nlabels-1)/2)
     else
@@ -17,7 +30,16 @@ function projected_size(nlabels; quadratic=true)
     end
 end
 
-function deprojected_size(nplabels; quadratic=true)
+"""
+
+    collapsed_size(nelabels; quadratic=true)
+
+The length of a label vector corresponding to an expanded label 
+vector of length nelabels.
+
+See also: [`expanded_size`](@ref)
+"""
+function collapsed_size(nplabels; quadratic=true)
     if quadratic
         Int((-3 + sqrt(1 + 8nplabels))/2)
     else
@@ -25,10 +47,10 @@ function deprojected_size(nplabels; quadratic=true)
     end
 end
 
-function project_labels(labels::Vector{R}; quadratic=true) where R <: Real
+function expand_labels(labels::Vector{R}; quadratic=true) where R <: Real
     vec(project_labels(Matrix(transpose(labels)), quadratic=quadratic))
 end
-function project_labels(labels::Matrix{R}; quadratic=true) where R <: Real
+function expand_labels(labels::Matrix{R}; quadratic=true) where R <: Real
     nstars, nlabels = size(labels)
     plabels = Matrix{R}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
     plabels[:, 1] .= 1
@@ -103,6 +125,7 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
 """
 function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64}, 
                labels::AbstractMatrix{Float64}; verbose=true, quadratic=true)
+    :: Tuple{Matrix{Float64}, Vector{Float64}}
     #count everything
     nstars = size(flux,1)
     npix = size(flux, 2)
