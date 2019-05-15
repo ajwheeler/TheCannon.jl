@@ -48,11 +48,11 @@ function collapsed_size(nplabels; quadratic=true)
 end
 
 function expand_labels(labels::Vector{R}; quadratic=true) where R <: Real
-    vec(project_labels(Matrix(transpose(labels)), quadratic=quadratic))
+    vec(expand_labels(Matrix(transpose(labels)), quadratic=quadratic))
 end
 function expand_labels(labels::Matrix{R}; quadratic=true) where R <: Real
     nstars, nlabels = size(labels)
-    plabels = Matrix{R}(undef, nstars, projected_size(nlabels; quadratic=quadratic))
+    plabels = Matrix{R}(undef, nstars, expanded_size(nlabels; quadratic=quadratic))
     plabels[:, 1] .= 1
     plabels[:, 2:nlabels+1] .= labels
     if quadratic
@@ -76,7 +76,7 @@ returns an array of dimensions nlabels x nlabels x npixels
 
 """
 function quad_coeff_matrix(theta::Matrix{Float64}) :: Array{Float64, 3}
-    nlabels = deprojected_size(size(theta, 1)) 
+    nlabels = collapsed_size(size(theta, 1)) 
     npix = size(theta, 2)
     Q = Array{Float64}(undef, nlabels, nlabels, npix)
     for p in 1:npix
@@ -121,7 +121,7 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
     `nstars x npixels` (row-vectors are spectra)
  - `ivar` contains the inverse variance for each pixel in the same shape as `flux`
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
-    It will be projected into the quadratic label space before training.
+    It will be expanded into the quadratic label space before training.
 """
 function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64}, 
                labels::AbstractMatrix{Float64}; verbose=true, quadratic=true
@@ -130,10 +130,10 @@ function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
     nstars = size(flux,1)
     npix = size(flux, 2)
     nlabels = size(labels, 2)
-    labels = project_labels(labels, quadratic=quadratic)
+    labels = expand_labels(labels, quadratic=quadratic)
     nplabels = size(labels, 2)
     if verbose 
-        println("$nstars stars, $npix pixels, $nplabels projected labels")
+        println("$nstars stars, $npix pixels, $nplabels expanded labels")
     end
     #initialize output variables
     theta = Matrix{Float64}(undef, nplabels, npix)
@@ -169,7 +169,7 @@ function train_mv(flux::Matrix{Float64}, ivar::Matrix{Float64},
     nstars = size(flux,1)
     npix = size(flux, 2)
     nlabels = size(labels, 2)
-    labels = project_labels(labels)
+    labels = expand_labels(labels)
     nplabels = size(labels, 2)
     println("$nstars stars, $npix pixels, $nplabels labels")
 
@@ -231,7 +231,7 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
               quadratic=true, verbose=true)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
-    nlabels = deprojected_size(nplabels; quadratic=quadratic)
+    nlabels = collapsed_size(nplabels; quadratic=quadratic)
 
     inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
     chi_squared = Vector{Float64}(undef, nstars)
@@ -246,14 +246,14 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
         F = flux[i, :]
         invσ2 = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
         function negative_log_post(labels)
-            A2 = (thetaT * project_labels(labels; quadratic=quadratic) .- F).^2
+            A2 = (thetaT * expand_labels(labels; quadratic=quadratic) .- F).^2
             0.5 * sum(A2 .* invσ2) - sum(logπ.(labels, prior[:, i]))
         end
         fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6),
                       autodiff=:forward)
         
         inferred_labels[i, :] = fit.minimizer
-        chi_squared[i] = sum((thetaT * project_labels(fit.minimizer; quadratic=quadratic) .- F).^2 .* invσ2)
+        chi_squared[i] = sum((thetaT * expand_labels(fit.minimizer; quadratic=quadratic) .- F).^2 .* invσ2)
         information[i, :, :] = ForwardDiff.hessian(negative_log_post, fit.minimizer)
     end
     inferred_labels, chi_squared, information
@@ -263,7 +263,7 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
               quadratic=true, kwargs...)
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
-    nlabels = deprojected_size(nplabels; quadratic=quadratic)
+    nlabels = collapsed_size(nplabels; quadratic=quadratic)
     prior = Matrix{Union{Missing, Tuple{Float64, Float64, Float64}}}(missing, nlabels, nstars)
     infer(flux, ivar, theta, scatters, prior; quadratic=quadratic, kwargs...)
 end
