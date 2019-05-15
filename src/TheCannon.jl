@@ -1,8 +1,8 @@
 module TheCannon
 using Optim, Statistics, LinearAlgebra, ForwardDiff
 export expanded_size,
-       deprojected_size,
-       project_labels,
+       collapsed_size,
+       expand_labels,
        standardize_labels,
        unstandardize_labels,
        train,
@@ -124,8 +124,8 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
     It will be projected into the quadratic label space before training.
 """
 function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64}, 
-               labels::AbstractMatrix{Float64}; verbose=true, quadratic=true)
-    :: Tuple{Matrix{Float64}, Vector{Float64}}
+               labels::AbstractMatrix{Float64}; verbose=true, quadratic=true
+              ) :: Tuple{Matrix{Float64}, Vector{Float64}}
     #count everything
     nstars = size(flux,1)
     npix = size(flux, 2)
