@@ -75,10 +75,10 @@ returns an array of dimensions nlabels x nlabels x npixels
    Q[:, :, 1] #quadratic coefficients for first pixel
 
 """
-function quad_coeff_matrix(theta::Matrix{Float64}) :: Array{Float64, 3}
+function quad_coeff_matrix(theta::Matrix{F}) :: Array{F, 3} where F <: AbstractFloat
     nlabels = collapsed_size(size(theta, 1)) 
     npix = size(theta, 2)
-    Q = Array{Float64}(undef, nlabels, nlabels, npix)
+    Q = Array{F}(undef, nlabels, nlabels, npix)
     for p in 1:npix
         k = 1
         for i in 1:nlabels
@@ -123,9 +123,9 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
     It will be expanded into the quadratic label space before training.
 """
-function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64}, 
-               labels::AbstractMatrix{Float64}; verbose=true, quadratic=true
-              ) :: Tuple{Matrix{Float64}, Vector{Float64}}
+function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F}, 
+               labels::AbstractMatrix{F}; verbose=true, quadratic=true
+              ) :: Tuple{Matrix{F}, Vector{F}} where F <: AbstractFloat
     #count everything
     nstars = size(flux,1)
     npix = size(flux, 2)
@@ -136,8 +136,8 @@ function train(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
         println("$nstars stars, $npix pixels, $nplabels expanded labels")
     end
     #initialize output variables
-    theta = Matrix{Float64}(undef, nplabels, npix)
-    scatters = Vector{Float64}(undef, npix)
+    theta = Matrix{F}(undef, nplabels, npix)
+    scatters = Vector{F}(undef, npix)
     #train on each pixel independently
     for i in 1:npix
         if verbose && i % 500 == 0
@@ -209,7 +209,7 @@ function train_mv(flux::Matrix{Float64}, ivar::Matrix{Float64},
     theta, scatters, objective
 end
 
-function logπ(label::R, p) where R <: Real
+function logπ(label::F, p) where F <: AbstractFloat
     if ismissing(p)
         return 0
     else
@@ -225,17 +225,17 @@ end
 Run the test step of the cannon.
 Given a Cannon model (from training), infer stellar parameters
 """
-function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
-              theta::AbstractMatrix{Float64}, scatters::AbstractVector{Float64}, 
-              prior::AbstractMatrix{Union{Tuple{Float64, Float64, Float64}, Missing}};
-              quadratic=true, verbose=true)
+function infer(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
+              theta::AbstractMatrix{F}, scatters::AbstractVector{F}, 
+              prior::AbstractMatrix{Union{Tuple{F, F, F}, Missing}};
+              quadratic=true, verbose=true) where F <: AbstractFloat
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
     nlabels = collapsed_size(nplabels; quadratic=quadratic)
 
-    inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
-    chi_squared = Vector{Float64}(undef, nstars)
-    information = Array{Float64, 3}(undef, nstars, nlabels, nlabels)
+    inferred_labels = Matrix{F}(undef, nstars, nlabels)
+    chi_squared = Vector{F}(undef, nstars)
+    information = Array{F, 3}(undef, nstars, nlabels, nlabels)
 
     thetaT = transpose(theta)
     for i in 1:nstars
@@ -258,13 +258,13 @@ function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
     end
     inferred_labels, chi_squared, information
 end
-function infer(flux::AbstractMatrix{Float64}, ivar::AbstractMatrix{Float64},
-              theta::AbstractMatrix{Float64}, scatters::AbstractVector{Float64};
-              quadratic=true, kwargs...)
+function infer(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
+              theta::AbstractMatrix{F}, scatters::AbstractVector{F};
+              quadratic=true, kwargs...) where F <: AbstractFloat
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
     nlabels = collapsed_size(nplabels; quadratic=quadratic)
-    prior = Matrix{Union{Missing, Tuple{Float64, Float64, Float64}}}(missing, nlabels, nstars)
+    prior = Matrix{Union{Missing, Tuple{F, F, F}}}(missing, nlabels, nstars)
     infer(flux, ivar, theta, scatters, prior; quadratic=quadratic, kwargs...)
 end
 
