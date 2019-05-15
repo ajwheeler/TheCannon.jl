@@ -219,7 +219,8 @@ function logπ(label::R, p) where R <: Real
 end                                        
 
 """
-    test(flux, ivar, theta, scatters
+
+   infer(flux, ivar, theta, scatters)
 
 Run the test step of the cannon.
 Given a Cannon model (from training), infer stellar parameters
