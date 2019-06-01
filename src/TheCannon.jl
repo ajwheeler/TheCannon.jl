@@ -164,60 +164,6 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
     theta, scatters
 end
 
-function train_mv(flux::Matrix{Float64}, ivar::Matrix{Float64}, 
-                           labels::Matrix{Float64}; Λ=10, fastmode=false)
-    nstars = size(flux,1)
-    npix = size(flux, 2)
-    nlabels = size(labels, 2)
-    labels = expand_labels(labels)
-    nplabels = size(labels, 2)
-    println("$nstars stars, $npix pixels, $nplabels labels")
-
-    theta = Matrix{Float64}(undef, nplabels, npix)
-    scatters = Vector{Float64}(undef, npix)
-    objective = Vector{Float64}(undef, npix)
-
-    #do linear regression for each pixel
-    for i in 1:npix
-        println("pixel $i")
-        function negative_log_likelihood(coeffscatter) #up to constant
-            scatter = coeffscatter[end]
-            coeffs = coeffscatter[1:end-1]
-
-            χ = labels*coeffs - flux[:, i]
-            Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
-            (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
-             0.5*sum(log.(diag(Σ))) + #normalizaion term
-             Λ*sum(abs.(coeffs[4:end]))) #L1 penalty
-        end
-
-        thetascatter0 = zeros(nplabels+1)
-        lT_invcov_l = transpose(labels) * Diagonal(ivar[:, i]) * labels 
-        lT_invcov_F = transpose(labels) * Diagonal(ivar[:, i]) * flux[:,i]
-        thetascatter0[1:end-1] = lT_invcov_l \ lT_invcov_F
-        thetascatter0[end] = 0.01
-
-        fit = optimize(negative_log_likelihood, thetascatter0,
-                       iterations=fastmode ? 1000 : 100000)
-        if ! fit.g_converged
-            @warn "pixel $i not converged"
-        end
-        scatters[i] = fit.minimizer[end]
-        theta[:, i] = fit.minimizer[1:end-1]
-        objective[i] = fit.minimum
-    end
-    theta, scatters, objective
-end
-
-function logπ(label::F, p) where F <: AbstractFloat
-    if ismissing(p)
-        return 0
-    else
-        σ = (p[3] - p[1])/2
-        return -0.5*((label-p[2])/σ)^2 - log(σ)
-    end
-end                                        
-
 """
 
    infer(flux, ivar, theta, scatters)
@@ -225,17 +171,18 @@ end
 Run the test step of the cannon.
 Given a Cannon model (from training), infer stellar parameters
 """
-function infer(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
-              theta::AbstractMatrix{F}, scatters::AbstractVector{F}, 
-              prior::AbstractMatrix{Union{Tuple{F, F, F}, Missing}};
-              quadratic=true, verbose=true) where F <: AbstractFloat
+function infer(flux::AbstractMatrix{Fl}, 
+               ivar::AbstractMatrix{Fl},
+               theta::AbstractMatrix{Fl}, 
+               scatters::AbstractVector{Fl};
+               quadratic=true, verbose=true) where Fl <: AbstractFloat
     nstars = size(flux, 1)
     nplabels = size(theta, 1)
     nlabels = collapsed_size(nplabels; quadratic=quadratic)
 
-    inferred_labels = Matrix{F}(undef, nstars, nlabels)
-    chi_squared = Vector{F}(undef, nstars)
-    information = Array{F, 3}(undef, nstars, nlabels, nlabels)
+    inferred_labels = Matrix{Float64}(undef, nstars, nlabels)
+    chi_squared = Vector{Float64}(undef, nstars)
+    information = Array{Float64, 3}(undef, nstars, nlabels, nlabels)
 
     thetaT = transpose(theta)
     for i in 1:nstars
@@ -247,7 +194,7 @@ function infer(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
         invσ2 = (ivar[i, :].^(-1) .+ scatters.^2).^(-1)
         function negative_log_post(labels)
             A2 = (thetaT * expand_labels(labels; quadratic=quadratic) .- F).^2
-            0.5 * sum(A2 .* invσ2) - sum(logπ.(labels, prior[:, i]))
+            0.5 * sum(A2 .* invσ2) 
         end
         fit = optimize(negative_log_post, zeros(nlabels), Optim.Options(g_tol=1e-6),
                       autodiff=:forward)
@@ -257,15 +204,6 @@ function infer(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
         information[i, :, :] = ForwardDiff.hessian(negative_log_post, fit.minimizer)
     end
     inferred_labels, chi_squared, information
-end
-function infer(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
-              theta::AbstractMatrix{F}, scatters::AbstractVector{F};
-              quadratic=true, kwargs...) where F <: AbstractFloat
-    nstars = size(flux, 1)
-    nplabels = size(theta, 1)
-    nlabels = collapsed_size(nplabels; quadratic=quadratic)
-    prior = Matrix{Union{Missing, Tuple{F, F, F}}}(missing, nlabels, nstars)
-    infer(flux, ivar, theta, scatters, prior; quadratic=quadratic, kwargs...)
 end
 
 end
