@@ -117,11 +117,15 @@ end
 
 returns: theta, scatters
 Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
- - `flux` contains the spectra for each pixel in the training set.  It should be 
+ - `flux` contains the spectra for each star in the training set.  It should be 
     `nstars x npixels` (row-vectors are spectra)
  - `ivar` contains the inverse variance for each pixel in the same shape as `flux`
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
     It will be expanded into the quadratic label space before training.
+
+returns:
+- `theta`: the matrix containing the cannon coefficients.  It will be `n_expanded_labels x npix`
+- `scatters`: the model scatter at each pixel
 """
 function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F}, 
                labels::AbstractMatrix{F}; verbose=true, quadratic=true
@@ -168,8 +172,12 @@ end
 
    infer(flux, ivar, theta, scatters)
 
-Run the test step of the cannon.
-Given a Cannon model (from training), infer stellar parameters
+Run the test step of the cannon.  Given `theta` and `scatters` (from training), infer stellar parameters.
+ - `flux` contains the spectra for each star for which you want to infer labels 
+ in the training set.  It should be `nstars x npixels` (row-vectors are spectra)
+ - `ivar` contains the inverse variance for each pixel in the same shape as `flux`
+- `theta`: the matrix containing the cannon coefficients.  It will be `n_expanded_labels x npix`
+- `scatters`: the model scatter at each pixel
 """
 function infer(flux::AbstractMatrix{Fl}, 
                ivar::AbstractMatrix{Fl},
