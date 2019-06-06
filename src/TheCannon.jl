@@ -92,12 +92,20 @@ function quad_coeff_matrix(theta::Matrix{F}) :: Array{F, 3} where F <: AbstractF
     Q
 end
 
+"""
+Transform the label matrix (`nstars x nlabels`) live roughly in [-1, 1] by
+subtractive the mean and dividing by the scatter.
+returns `(standardized_labels, pivots, scales)`
+"""
 function standardize_labels(labels)
     pivot = mean(labels, dims=1)
     scale = std(labels, dims=1)
     (labels .- pivot)./scale, vec(pivot), vec(scale)
 end
 
+"""
+Transform labels back to their original scale.
+"""
 function unstandardize_labels(labels, pivot, scale)
     labels.*transpose(hcat(scale)) .+ transpose(hcat(pivot))
 end
