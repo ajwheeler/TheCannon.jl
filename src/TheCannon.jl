@@ -70,10 +70,10 @@ end
 """
 Get the quadratic terms of theta as matrices.
 returns an array of dimensions nlabels x nlabels x npixels
-
-   Q = quad_coeff_matrix(theta)
-   Q[:, :, 1] #quadratic coefficients for first pixel
-
+```
+Q = quad_coeff_matrix(theta)
+Q[:, :, 1] #quadratic coefficients for first pixel
+111
 """
 function quad_coeff_matrix(theta::Matrix{F}) :: Array{F, 3} where F <: AbstractFloat
     nlabels = collapsed_size(size(theta, 1)) 
