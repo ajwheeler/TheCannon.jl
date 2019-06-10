@@ -2,27 +2,27 @@ using Test, Statistics, TheCannon
 
 @testset "All Tests" begin
 
-    @testset "test label projection" begin
+    @testset "test label expansion" begin
         labels = Float64.([1  2  3 ; 2  3  4])
         plabels = Float64.([[1  1  2  3  1  2  3  4  6  9];
                             [1  2  3  4  4  6  8  9  12  16]])
-        @test project_labels(labels) ≈ plabels
-        @test project_labels(labels;quadratic=false) ≈ Float64.([[1 1 2 3];[1 2 3 4]])
+        @test expand_labels(labels) ≈ plabels
+        @test expand_labels(labels;quadratic=false) ≈ Float64.([[1 1 2 3];[1 2 3 4]])
     end
 
-    @testset "single label projection" begin
-        @test project_labels([1., 2., 3.]) == Float64.([1, 1, 2, 3, 1, 2, 3, 4, 6, 9])
-        @test project_labels([1., 2., 3.]; quadratic=false) == Float64.([1,1,2,3])
+    @testset "single label expansion" begin
+        @test expand_labels([1., 2., 3.]) == Float64.([1, 1, 2, 3, 1, 2, 3, 4, 6, 9])
+        @test expand_labels([1., 2., 3.]; quadratic=false) == Float64.([1,1,2,3])
     end
 
-    @testset "projected size" begin
-        @test projected_size(10) == 66
-        @test projected_size(10;quadratic=false) == 11
+    @testset "expanded size" begin
+        @test expanded_size(10) == 66
+        @test expanded_size(10;quadratic=false) == 11
     end
 
-    @testset "deprojected size" begin
-        @test deprojected_size(66) == 10
-        @test deprojected_size(11;quadratic=false) == 10
+    @testset "collapsed size" begin
+        @test collapsed_size(66) == 10
+        @test collapsed_size(11;quadratic=false) == 10
     end
 
     @testset "label standardization" begin
