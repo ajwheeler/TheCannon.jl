@@ -68,6 +68,34 @@ function expand_labels(labels::Matrix{R}; quadratic=true) where R <: Real
 end
 
 """
+Given a coefficient vector `coeffs` constructed with labels masked by `mask`,
+return the coefficient vector compatible with unmasked labels which has been 
+padded with `0`s
+"""
+function promote_coeffs(coeffs::Vector{F}, mask::Vector{Bool}; 
+                        quadratic=true) where F <: AbstractFloat
+    mask = expand_labels(mask)
+    ncoeff = length(mask)
+    inds = zeros(Int, ncoeff)
+
+    c = 1
+    for i in 1:ncoeff
+        if mask[i]
+            inds[i] = c
+            c += 1
+        end
+    end
+
+    pcoeffs = zeros(ncoeff)
+    for i in 1:ncoeff
+        if inds[i] != 0
+            pcoeffs[i] = coeffs[inds[i]]
+        end
+    end
+    pcoeffs
+end
+
+"""
 Get the quadratic terms of theta as matrices.
 returns an array of dimensions nlabels x nlabels x npixels
 ```
@@ -121,7 +149,7 @@ end
 
 
 """
-    train(flux, ivar, labels)
+    train(flux, ivar, labels, mask=nothing, verbose=true, quadratic=true)
 
 returns: theta, scatters
 Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
@@ -130,13 +158,18 @@ Run the training step of The Cannon, i.e. calculate coefficients for each pixel.
  - `ivar` contains the inverse variance for each pixel in the same shape as `flux`
  - `labels` contains the labels for each star.  It should be `nstars x nlabels`.
     It will be expanded into the quadratic label space before training.
+ - `mask` (optional) is a `nlabels x npix` matrix of booleans specifying which
+    labels are "allowed" to affect the spectrum at each pixel.
 
 returns:
-- `theta`: the matrix containing the cannon coefficients.  It will be `n_expanded_labels x npix`
+- `theta`: the matrix containing the cannon coefficients.  
+   It will be `n_expanded_labels x npix`
 - `scatters`: the model scatter at each pixel
 """
 function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F}, 
-               labels::AbstractMatrix{F}; verbose=true, quadratic=true
+               labels::AbstractMatrix{F}; 
+               mask::Union{Nothing, AbstractMatrix{Bool}}=nothing,
+               verbose=true, quadratic=true
               ) :: Tuple{Matrix{F}, Vector{F}} where F <: AbstractFloat
     #count everything
     nstars = size(flux,1)
@@ -152,6 +185,7 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
     scatters = Vector{F}(undef, npix)
     #train on each pixel independently
     for i in 1:npix
+        maskedlabels = mask == nothing ? labels : labels[:, expand_labels(mask[:, i], quadratic=quadratic)]
         if verbose && i % 500 == 0
             println("training on pixel $i")
         end
@@ -164,14 +198,15 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
              0.5*sum(log.(diag(Σ)))) #normalizaion term
         end
         fit = optimize(negative_log_likelihood, 1e-16, 1, rel_tol=0.01)
-        #fit = optimize(negative_log_likelihood, [0.01], LBFGS(); autodiff=:forward)
         if ! fit.converged
             @warn "pixel $i not converged"
         end
 
         scatters[i] = fit.minimizer[1]
         Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
-        theta[:, i] = linear_soln(labels, Σ, flux[:, i])
+
+        θ = linear_soln(labels, Σ, flux[:, i])
+        theta[:, i] = mask == nothing ? θ : promote_coeffs(θ, mask[:, i], quadratic=quadratic)
     end
     theta, scatters
 end

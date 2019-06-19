@@ -1,4 +1,5 @@
 using Test, Statistics, TheCannon
+import TheCannon
 
 @testset "All Tests" begin
 
@@ -35,5 +36,12 @@ using Test, Statistics, TheCannon
     @testset "normalize standardization" begin
         L = rand(4, 5)
         @test L ≈ unstandardize_labels(standardize_labels(L)...)
+    end
+
+    @testset "promote coeffs" begin
+        θ = Float64.([1,1,3,1,3,9])
+        mask = [true,false,true]
+        pθ = Float64.([1,1,0,3,1,0,3,0,0,9])
+        @test TheCannon.promote_coeffs(θ, mask) == pθ
     end
 end
