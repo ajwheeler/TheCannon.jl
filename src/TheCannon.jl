@@ -186,6 +186,7 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
     #train on each pixel independently
     for i in 1:npix
         maskedlabels = mask == nothing ? labels : labels[:, expand_labels(mask[:, i], quadratic=quadratic)]
+        maskedlabels = factorize(maskedlabels)
         if verbose && i % 500 == 0
             println("training on pixel $i")
         end
@@ -235,7 +236,7 @@ function infer(flux::AbstractMatrix{Fl},
     chi_squared = Vector{Float64}(undef, nstars)
     information = Array{Float64, 3}(undef, nstars, nlabels, nlabels)
 
-    thetaT = transpose(theta)
+    thetaT = factorize(transpose(theta))
     for i in 1:nstars
         if verbose && i%100==0
             println("inferring labels for star $i")
