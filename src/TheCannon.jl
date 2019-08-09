@@ -52,19 +52,72 @@ function expand_labels(labels::Vector{R}; quadratic=true) where R <: Real
 end
 function expand_labels(labels::Matrix{R}; quadratic=true) where R <: Real
     nstars, nlabels = size(labels)
-    plabels = Matrix{R}(undef, nstars, expanded_size(nlabels; quadratic=quadratic))
-    plabels[:, 1] .= 1
-    plabels[:, 2:nlabels+1] .= labels
+    elabels = Matrix{R}(undef, nstars, expanded_size(nlabels; quadratic=quadratic))
+    elabels[:, 1] .= 1
+    elabels[:, 2:nlabels+1] .= labels
     if quadratic
         k = 1
-        for i in 1:nlabels
-            for j in i:nlabels
-                plabels[:, nlabels + 1 + k] .= labels[:, i] .* labels[:, j]
-                k += 1
-            end
+        for i in 1:nlabels, j in i:nlabels
+            elabels[:, nlabels + 1 + k] .= labels[:, i] .* labels[:, j]
+            k += 1
         end
     end
-    plabels
+    elabels
+end
+
+function expanditer(nlabels; quadratic=true)
+    inds = Vector{Tuple{Int, Int}}(undef, expanded_size(nlabels, quadratic=quadratic))
+    inds[1] = (0,0)
+    inds[2:nlabels+1] = [(i, 0) for i in 1:nlabels]
+    if quadratic
+        k = 1
+        for i in 1:nlabels, j in i:nlabels
+            inds[nlabels+1+k] = (i, j)
+            k += 1
+        end
+    end
+    inds
+end
+
+"""
+returns covariance matric for expanded label vector given independant
+gaussian error on each label
+doesn't support non-quadratic mode
+"""
+function expand_errors(labels::Vector{R}, errors::Vector{R}) where R <: Real
+    nlabels = length(errors)
+    esize = expanded_size(nlabels)
+    eerror = zeros(esize, esize)
+    inds = enumerate(expanditer(nlabels))
+    for (i, (ii, ij)) in inds, (j, (ji, jj)) in inds
+        if j > i || (ji == 0)
+            continue
+        elseif (ij == 0) && (jj == 0) && (ii == ji) #COV(X,X)
+            eerror[i, j] = errors[ii]^2
+        elseif jj == 0 #second linear
+            if ji == ii == ij # COV(X, XX)
+                eerror[i,j] = 3 * labels[ii]^2*errors[ii] - 
+                              labels[ii]*errors[ii]^2
+            elseif (ji == ii) # COV(X, XY)
+                eerror[i,j] = labels[ji] * errors[ij]
+            elseif (ji == ij) # COV(X, YX)
+                eerror[i,j] = labels[ji] * errors[ii]
+            end 
+        elseif ii == ij == ji == jj # COV(XX,XX)
+            eerror[i,j] = 4*labels[ii]^2 * errors[ii]^2 + 2*errors[ii]^4
+        elseif ii == ij == ji #COV(XX, XY)
+            eerror[i,j] = 4 * labels[ii] * labels[ij] * errors[ii]^2
+        elseif ii == ji == jj #COV(XY, XX)
+            eerror[i,j] = 4 * labels[ii] * labels[ij] * errors[ii]^2
+        elseif (ii == ji) && (ij == jj) # COV(XY,XY)
+            eerror[i,j] = (labels[ii]*errors[ij])^2 + 
+                          (labels[ij]*errors[ii])^2 + 
+                          (errors[ii]*errors[ij])^2
+        elseif (ii == ji) # COV(XY, XZ) 
+            eerror[i,j] = labels[ij] * labels[jj] * errors[ii]^2
+        end
+    end
+    max.(eerror, transpose(eerror))
 end
 
 """
@@ -176,7 +229,7 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
     npix = size(flux, 2)
     nlabels = size(labels, 2)
     labels = expand_labels(labels, quadratic=quadratic)
-    nplabels = size(labels, 2)
+    nplabels = expanded_size(nlabels, quadratic=quadratic)
     if verbose 
         println("$nstars stars, $npix pixels, $nplabels expanded labels")
     end
@@ -192,8 +245,8 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
         function negative_log_likelihood(scatter) #up to constant
             scatter = scatter[1]
             Σ = Diagonal(ivar[:, i].^(-1) .+ scatter^2)
-            coeffs = linear_soln(labels, Σ, flux[:, i])
-            χ = labels*coeffs - flux[:, i]
+            coeffs = linear_soln(maskedlabels, Σ, flux[:, i])
+            χ = maskedlabels*coeffs - flux[:, i]
             (0.5*(transpose(χ) * inv(Σ) * χ) + #chi-squared
              0.5*sum(log.(diag(Σ)))) #normalizaion term
         end
@@ -205,7 +258,7 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
         scatters[i] = fit.minimizer[1]
         Σ = Diagonal(ivar[:, i].^(-1) .+ scatters[i]^2)
 
-        θ = linear_soln(labels, Σ, flux[:, i])
+        θ = linear_soln(maskedlabels, Σ, flux[:, i])
         theta[:, i] = mask == nothing ? θ : promote_coeffs(θ, mask[:, i], quadratic=quadratic)
     end
     theta, scatters
