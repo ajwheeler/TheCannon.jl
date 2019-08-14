@@ -2,8 +2,7 @@ module TheCannon
 using Optim, Statistics, LinearAlgebra, ForwardDiff
 export expanded_size,
        collapsed_size,
-       expand_labels,
-       standardize_labels,
+       expand_labels, standardize_labels,
        unstandardize_labels,
        train,
        infer,
@@ -63,61 +62,6 @@ function expand_labels(labels::Matrix{R}; quadratic=true) where R <: Real
         end
     end
     elabels
-end
-
-function expanditer(nlabels; quadratic=true)
-    inds = Vector{Tuple{Int, Int}}(undef, expanded_size(nlabels, quadratic=quadratic))
-    inds[1] = (0,0)
-    inds[2:nlabels+1] = [(i, 0) for i in 1:nlabels]
-    if quadratic
-        k = 1
-        for i in 1:nlabels, j in i:nlabels
-            inds[nlabels+1+k] = (i, j)
-            k += 1
-        end
-    end
-    inds
-end
-
-"""
-returns covariance matric for expanded label vector given independant
-gaussian error on each label
-doesn't support non-quadratic mode
-"""
-function expand_errors(labels::Vector{R}, errors::Vector{R}) where R <: Real
-    nlabels = length(errors)
-    esize = expanded_size(nlabels)
-    eerror = zeros(esize, esize)
-    inds = enumerate(expanditer(nlabels))
-    for (i, (ii, ij)) in inds, (j, (ji, jj)) in inds
-        if j > i || (ji == 0)
-            continue
-        elseif (ij == 0) && (jj == 0) && (ii == ji) #COV(X,X)
-            eerror[i, j] = errors[ii]^2
-        elseif jj == 0 #second linear
-            if ji == ii == ij # COV(X, XX)
-                eerror[i,j] = 3 * labels[ii]^2*errors[ii] - 
-                              labels[ii]*errors[ii]^2
-            elseif (ji == ii) # COV(X, XY)
-                eerror[i,j] = labels[ji] * errors[ij]
-            elseif (ji == ij) # COV(X, YX)
-                eerror[i,j] = labels[ji] * errors[ii]
-            end 
-        elseif ii == ij == ji == jj # COV(XX,XX)
-            eerror[i,j] = 4*labels[ii]^2 * errors[ii]^2 + 2*errors[ii]^4
-        elseif ii == ij == ji #COV(XX, XY)
-            eerror[i,j] = 4 * labels[ii] * labels[ij] * errors[ii]^2
-        elseif ii == ji == jj #COV(XY, XX)
-            eerror[i,j] = 4 * labels[ii] * labels[ij] * errors[ii]^2
-        elseif (ii == ji) && (ij == jj) # COV(XY,XY)
-            eerror[i,j] = (labels[ii]*errors[ij])^2 + 
-                          (labels[ij]*errors[ii])^2 + 
-                          (errors[ii]*errors[ij])^2
-        elseif (ii == ji) # COV(XY, XZ) 
-            eerror[i,j] = labels[ij] * labels[jj] * errors[ii]^2
-        end
-    end
-    max.(eerror, transpose(eerror))
 end
 
 """
@@ -262,46 +206,6 @@ function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F},
         theta[:, i] = mask == nothing ? θ : promote_coeffs(θ, mask[:, i], quadratic=quadratic)
     end
     theta, scatters
-end
-function train(flux::AbstractMatrix{F}, ivar::AbstractMatrix{F}, 
-               labels::AbstractMatrix{F}, lstd::AbstractMatrix{F}; 
-               verbose=true, quadratic=true
-              ) :: Tuple{Matrix{F}, Vector{F}} where F <: AbstractFloat
-    error("not implemented") 
-    #count everything
-    nstars = size(flux,1)
-    npix = size(flux, 2)
-    nlabels = size(labels, 2)
-    labels = expand_labels(labels, quadratic=quadratic)
-    nplabels = size(labels, 2)
-    if verbose 
-        println("$nstars stars, $npix pixels, $nplabels expanded labels")
-    end
-    #initialize output variables
-    theta = Matrix{F}(undef, nplabels, npix)
-    scatters = Vector{F}(undef, npix)
-    #train on each pixel independently
-    for i in 1:npix
-        if verbose && i % 500 == 0
-            println("training on pixel $i")
-        end
-        function negative_log_likelihood(pars) #up to constant
-            scatter = pars[1]
-            theta = pars[2:end]
-            #calculate stuff
-        end
-
-        #make this multivariate
-        fit = optimize(negative_log_likelihood, 1e-16, 1, rel_tol=0.01)
-        if ! fit.converged
-            @warn "pixel $i not converged"
-        end
-
-        scatters[i] = fit.minimizer[1]
-        thetas[:, i] = fit.minimizer[2:end]
-    end
-    theta, scatters
-e
 end
 
 """
