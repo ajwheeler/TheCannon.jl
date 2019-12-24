@@ -1,7 +1,7 @@
 name = "TheCannon"
 uuid = "3c28d9fa-eaec-11e8-3371-6131c0bd32f6"
 authors = ["Adam Wheeler <adamwhlr@gmail.com>"]
-version = "0.2.0"
+version = "1.0.0"
 
 [deps]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
