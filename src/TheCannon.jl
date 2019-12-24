@@ -42,6 +42,15 @@ function collapsed_size(nplabels; quadratic=true)
     end
 end
 
+"""
+
+    expand_labels(labels; quadratic=true)
+
+If `labels` is a `Vector`, return it's quadratic (or linear) expansion.
+If `labels` is a `Matrix`, return the matrix whose rows are expansions of the rows of `labels`.
+
+This is the transformation referred to as \$eta\$ in Wheeler+ 2020, and as the "vectorizing function" in [Casey+ 2016](https://arxiv.org/abs/1603.03040).
+"""
 function expand_labels(labels::Vector{R}; quadratic=true) where R <: Real
     vec(expand_labels(Matrix(transpose(labels)), quadratic=quadratic))
 end
@@ -89,12 +98,14 @@ function promote_coeffs(coeffs::Vector{F}, mask::Vector{Bool};
 end
 
 """
-Get the quadratic terms of theta as matrices.
-returns an array of dimensions nlabels x nlabels x npixels
-```
-Q = quad_coeff_matrix(theta)
-Q[:, :, 1] #quadratic coefficients for first pixel
-111
+Get the quadratic terms of `theta` as symetric matrices.
+returns an array of dimensions `nlabels x nlabels x npixels`
+
+
+    Q = quad_coeff_matrix(theta)
+    Q[:, :, 1] #quadratic coefficients for first pixel
+
+
 """
 function quad_coeff_matrix(theta::Matrix{F}) :: Array{F, 3} where F <: AbstractFloat
     nlabels = collapsed_size(size(theta, 1)) 
@@ -114,7 +125,7 @@ function quad_coeff_matrix(theta::Matrix{F}) :: Array{F, 3} where F <: AbstractF
 end
 
 """
-Transform the label matrix (`nstars x nlabels`) live roughly in [-1, 1] by
+Standardize the label matrix (`nstars x nlabels`) to live roughly in [-1, 1] by
 subtractive the mean and dividing by the scatter.
 returns `(standardized_labels, pivots, scales)`
 """
@@ -125,7 +136,10 @@ function standardize_labels(labels)
 end
 
 """
-Transform labels back to their original scale.
+Transform labels back to their unstandardize form. Returns
+
+   labels.*transpose(hcat(scale)) .+ transpose(hcat(pivot))
+
 """
 function unstandardize_labels(labels, pivot, scale)
     labels.*transpose(hcat(scale)) .+ transpose(hcat(pivot))
@@ -206,7 +220,7 @@ end
 
 """
 
-   infer(flux, ivar, theta, scatters)
+   infer(flux, ivar, theta, scatters; quadratic=true, verbose=true)
 
 Run the test step of the cannon.  Given `theta` and `scatters` (from training), infer stellar parameters.
  - `flux` contains the spectra for each star for which you want to infer labels 
@@ -214,6 +228,8 @@ Run the test step of the cannon.  Given `theta` and `scatters` (from training), 
  - `ivar` contains the inverse variance for each pixel in the same shape as `flux`
 - `theta`: the matrix containing the cannon coefficients.  It will be `n_expanded_labels x npix`
 - `scatters`: the model scatter at each pixel
+
+If `verbose` is set to true, gives an update for every 100 stars processed.
 """
 function infer(flux::AbstractMatrix{Fl}, 
                ivar::AbstractMatrix{Fl},
