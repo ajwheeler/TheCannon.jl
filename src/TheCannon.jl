@@ -8,10 +8,6 @@ export expanded_size,
        infer,
        quad_coeff_matrix
 
-@deprecate projected_size expanded_size
-@deprecate deprojected_size collapsed_size
-@deprecate project_labels expand_labels
-
 """
 
     expandeded_size(nlabels; quadratic=true)
