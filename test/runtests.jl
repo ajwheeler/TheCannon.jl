@@ -45,21 +45,4 @@ import TheCannon
         @test TheCannon.promote_coeffs(θ, mask) == pθ
     end
 
-    @testset "expanditer" begin
-        a = [(0,0), (1, 0)]
-        @test TheCannon.expanditer(1, quadratic=false) == a
-
-        a = [(0,0), (1,0), (2, 0)]
-        @test TheCannon.expanditer(2, quadratic=false) == a
-         
-        a = [(0,0), (1,0), (1,1)]
-        @test TheCannon.expanditer(1) == a
-
-        a = [(0,0), (1,0), (2,0), (1,1), (1,2), (2,2)]
-        @test TheCannon.expanditer(2) == a
-    end
-
-    @testset "expand errors" begin
-        TheCannon.expand_errors([1.,2.,3.],[2.,1.,1.])
-    end
 end
