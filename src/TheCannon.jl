@@ -49,7 +49,7 @@ end
 If `labels` is a `Vector`, return it's quadratic (or linear) expansion.
 If `labels` is a `Matrix`, return the matrix whose rows are expansions of the rows of `labels`.
 
-This is the transformation referred to as \$eta\$ in Wheeler+ 2020, and as the "vectorizing function" in [Casey+ 2016](https://arxiv.org/abs/1603.03040).
+This is the transformation referred to as \$\\eta\$ in Wheeler+ 2020, and as the "vectorizing function" in [Casey+ 2016](https://arxiv.org/abs/1603.03040).
 """
 function expand_labels(labels::Vector{R}; quadratic=true) where R <: Real
     vec(expand_labels(Matrix(transpose(labels)), quadratic=quadratic))
