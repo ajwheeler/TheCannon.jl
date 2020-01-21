@@ -137,9 +137,9 @@ end
 
 function linear_soln(labels, Σ, flux)
     lT_invcov_l = transpose(labels) * inv(Σ) * labels 
-    #if cond(lT_invcov_l) > 1e8
-    #    @warn "dangerous condition number in normal equation"
-    #end
+    if cond(lT_invcov_l) > 1e8
+        @warn "dangerous condition number in normal equation"
+    end
     lT_invcov_F = transpose(labels) * inv(Σ) * flux
     lT_invcov_l \ lT_invcov_F
 end
