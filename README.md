@@ -10,3 +10,5 @@ You can install this package from the julia REPL with
 using Pkg
 Pkg.add("TheCannon")
 ```
+
+[Read the documentation](https://ajwheeler.github.io/TheCannon.jl/dev/)
